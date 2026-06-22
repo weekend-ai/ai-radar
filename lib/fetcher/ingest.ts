@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client";
 import { articles, sources, fetchJobs, type Source } from "@/lib/db/schema";
-import { fetchSource } from "./rss";
+import { fetchSource } from "./dispatch";
 import { and, eq, or, sql } from "drizzle-orm";
 
 export interface IngestSummary {

@@ -18,7 +18,10 @@ and bilingual switch (Day 9) follow.
 - **Postgres 16** + **pgvector** (via Docker)
 - **Drizzle ORM** + drizzle-kit
 - **Redis** (queue, used from Day 3+)
-- **rss-parser** for feed ingestion
+- **Fetch adapters** (pluggable per `source.type`):
+  - `rss` — generic RSS/Atom via `rss-parser`
+  - `sitemap` — sitemap.xml + prefix filter (for sites with no RSS, e.g. Anthropic)
+  - `arxiv_api` — official arXiv Atom API with built-in rate limiting
 - **OpenAI** for enrichment (added Day 5)
 - **pnpm** workspaces (single package for MVP)
 
@@ -55,7 +58,12 @@ ai-radar/
 │   └── api/                # server actions / fetch endpoints
 ├── lib/
 │   ├── db/                 # Drizzle schema + client
-│   ├── fetcher/            # RSS parser, dedup, ingest pipeline
+│   ├── fetcher/
+│   │   ├── adapters/       # rss / sitemap / arxiv_api adapters
+│   │   ├── dedup.ts        # URL canonicalize + content hashing
+│   │   ├── dispatch.ts     # routes a Source to its adapter by source.type
+│   │   ├── ingest.ts       # adapter dispatch → dedup → DB insert → fetch_jobs log
+│   │   └── types.ts        # FetchAdapter interface
 │   └── seed/               # initial sources list
 ├── workers/                # standalone node entrypoints (fetch, scheduler)
 ├── scripts/                # migrate, seed CLI helpers
