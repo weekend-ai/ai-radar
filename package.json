@@ -17,6 +17,8 @@
     "db:seed": "tsx scripts/seed-sources.ts",
     "worker:fetch": "tsx workers/fetch-once.ts",
     "worker:enrich": "tsx workers/enrich-once.ts",
+    "worker:embed": "tsx workers/embed-once.ts",
+    "worker:cluster": "tsx workers/cluster-once.ts",
     "worker:scheduler": "tsx workers/scheduler.ts",
     "test": "vitest run",
     "test:watch": "vitest"
