@@ -13,6 +13,7 @@ const nav = [
   { href: "/topics", label: "Topics" },
   { href: "/drafts", label: "Drafts" },
   { href: "/sources", label: "Sources" },
+  { href: "/jobs", label: "Jobs" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
