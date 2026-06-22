@@ -9,8 +9,25 @@ import {
   primaryKey,
   numeric,
   index,
+  customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+// Custom pgvector column type. drizzle-kit doesn't natively support `vector`
+// in older versions, so we declare it with customType and write the column
+// SQL ourselves. Cast input/output as number[] for app code.
+const vector = customType<{ data: number[]; driverData: string; config: { dimensions: number } }>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1536})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value: string): number[] {
+    // pgvector returns e.g. "[0.1,0.2,...]"
+    return JSON.parse(value) as number[];
+  },
+});
 
 // ============================================================
 // sources — RSS / Web feeds we pull from
@@ -68,6 +85,8 @@ export const articles = pgTable(
     hashUrl: text("hash_url").notNull(),
     hashTitle: text("hash_title").notNull(),
     hashContent: text("hash_content"),
+    embedding: vector("embedding", { dimensions: 1536 }),
+    embeddedAt: timestamp("embedded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -78,6 +97,7 @@ export const articles = pgTable(
     fetchedIdx: index("articles_fetched_idx").on(t.fetchedAt),
     hashUrlIdx: index("articles_hash_url_idx").on(t.hashUrl),
     hashTitleIdx: index("articles_hash_title_idx").on(t.hashTitle),
+    embeddedIdx: index("articles_embedded_idx").on(t.embeddedAt),
   })
 );
 
