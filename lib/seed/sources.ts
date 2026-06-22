@@ -23,19 +23,29 @@ export const seedSources: NewSource[] = [
   {
     id: "anthropic-news",
     name: "Anthropic News",
-    // NOTE: as of 2026-06 Anthropic does not publish a public RSS feed.
-    // Tracked as TODO — likely needs an HTML scraper adapter (Day 1.5+).
-    // Disabled by default so we don't spam fetch errors.
-    url: "https://www.anthropic.com/news",
-    type: "html",
+    // No public RSS; we pull anthropic.com/sitemap.xml and filter /news/ entries by lastmod.
+    url: "https://www.anthropic.com/sitemap.xml",
+    type: "sitemap",
     category: "models",
     tier: 1,
-    enabled: false,
     priority: "high",
     weight: 30,
     refreshIntervalMinutes: 60,
-    description: "Official Anthropic announcements, Claude updates, research. RSS unavailable — needs scraper.",
-    tags: ["official", "model-provider", "needs-scraper"],
+    description: "Official Anthropic announcements via sitemap (no RSS). Title is slug-derived until enrichment fetches og:title.",
+    tags: ["official", "model-provider", "sitemap:prefix=/news/", "sitemap:limit=50"],
+  },
+  {
+    id: "anthropic-engineering",
+    name: "Anthropic Engineering",
+    url: "https://www.anthropic.com/sitemap.xml",
+    type: "sitemap",
+    category: "infra",
+    tier: 1,
+    priority: "high",
+    weight: 28,
+    refreshIntervalMinutes: 180,
+    description: "Anthropic engineering posts (Claude Code, postmortems, agent how-tos) via sitemap.",
+    tags: ["official", "engineering", "sitemap:prefix=/engineering/", "sitemap:limit=50"],
   },
   {
     id: "google-ai-blog",
@@ -133,36 +143,34 @@ export const seedSources: NewSource[] = [
     tags: ["community", "essay"],
   },
 
-  // ─── Tier 4: research (arXiv) — kept separate ─────────────
-  // arXiv RSS endpoints sometimes return Atom 2.0 with no items via rss-parser
-  // when subjectAlternateName etc. are missing. The MVP currently disables them;
-  // we'll add a dedicated arXiv adapter in Day 4+.
+  // ─── Tier 4: research (arXiv) ─────────────────────────────
+  // We use the official Atom API (export.arxiv.org/api/query), not the
+  // legacy /rss/ endpoint which rss-parser cannot decode reliably.
+  // Rate limited internally to 1 req per 3s per arXiv guidance.
   {
     id: "arxiv-cs-ai",
     name: "arXiv cs.AI",
-    url: "http://export.arxiv.org/rss/cs.AI",
-    type: "rss",
+    url: "https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=30",
+    type: "arxiv_api",
     category: "research",
     tier: 4,
-    enabled: false,
     priority: "low",
     weight: 5,
     refreshIntervalMinutes: 720,
-    description: "arXiv Computer Science — Artificial Intelligence. Needs custom adapter.",
-    tags: ["research", "arxiv", "needs-adapter"],
+    description: "arXiv cs.AI — newest 30 submissions, via official Atom API.",
+    tags: ["research", "arxiv"],
   },
   {
     id: "arxiv-cs-lg",
     name: "arXiv cs.LG",
-    url: "http://export.arxiv.org/rss/cs.LG",
-    type: "rss",
+    url: "https://export.arxiv.org/api/query?search_query=cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=30",
+    type: "arxiv_api",
     category: "research",
     tier: 4,
-    enabled: false,
     priority: "low",
     weight: 5,
     refreshIntervalMinutes: 720,
-    description: "arXiv Computer Science — Machine Learning. Needs custom adapter.",
-    tags: ["research", "arxiv", "needs-adapter"],
+    description: "arXiv cs.LG — newest 30 submissions, via official Atom API.",
+    tags: ["research", "arxiv"],
   },
 ];
