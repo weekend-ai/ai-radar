@@ -1,5 +1,13 @@
+# pnpm v11+ workspace-level config.
+# Per https://pnpm.io/settings — `allowBuilds` REPLACED `onlyBuiltDependencies`
+# in v11 (the v10 name still appears in old docs/issues — it doesn't work).
+# Each entry maps a package name to true (run its install scripts) or false
+# (skip them silently). Without explicit true for these packages, pnpm
+# refuses to run install scripts and CI exits non-zero with
+# ERR_PNPM_IGNORED_BUILDS.
+
 allowBuilds:
-  esbuild: set this to true or false
-  msgpackr-extract: set this to true or false
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
+  esbuild: true
+  msgpackr-extract: true
+  sharp: true
+  unrs-resolver: true
