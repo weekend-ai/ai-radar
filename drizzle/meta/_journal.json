@@ -15,6 +15,13 @@
       "when": 1782130387257,
       "tag": "0001_abnormal_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782195717655,
+      "tag": "0002_topic_merge_archive",
+      "breakpoints": true
     }
   ]
 }

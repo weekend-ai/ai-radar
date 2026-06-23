@@ -12,7 +12,7 @@
 
 import { db } from "@/lib/db/client";
 import { topics, topicArticles, articles, articleInsights, sources } from "@/lib/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
 import { t } from "@/lib/i18n";
 import { resolveLang } from "@/lib/i18n.server";
@@ -20,6 +20,11 @@ import { resolveLang } from "@/lib/i18n.server";
 export const dynamic = "force-dynamic";
 
 type Sort = "score" | "size" | "recent";
+
+// Topics in these statuses should appear on the Topic Radar list. `selected`
+// is included so a promoted topic stays visible at the top. `merged`,
+// `archived`, `dismissed`, `drafted` are deliberately filtered out.
+const LIST_STATUSES = ["open", "selected"] as const;
 
 export default async function TopicsPage({
   searchParams,
@@ -51,7 +56,7 @@ export default async function TopicsPage({
       primaryArticleId: topics.primaryArticleId,
     })
     .from(topics)
-    .where(eq(topics.status, "open"))
+    .where(inArray(topics.status, LIST_STATUSES as unknown as string[]))
     .orderBy(...topicsOrderBy)
     .limit(60);
 
@@ -105,7 +110,7 @@ export default async function TopicsPage({
       maxSize: sql<number>`coalesce(max(${topics.articleCount}), 0)::int`,
     })
     .from(topics)
-    .where(eq(topics.status, "open"));
+    .where(inArray(topics.status, LIST_STATUSES as unknown as string[]));
 
   function makeHref(overrides: Partial<{ sort: Sort }>): string {
     const params = new URLSearchParams();
@@ -178,8 +183,19 @@ export default async function TopicsPage({
                       )}
                     </h2>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                      <Link
+                        href={`/topics/${t.id}` as never}
+                        className="rounded border border-border bg-bg px-1.5 py-0.5 hover:border-accent hover:text-accent"
+                      >
+                        {lang === "zh" ? "详情" : "detail"} →
+                      </Link>
+                      {t.status === "selected" ? (
+                        <span className="rounded bg-blue-500/10 px-1.5 py-0.5 uppercase tracking-wide text-blue-300">
+                          {lang === "zh" ? "已选中" : "selected"}
+                        </span>
+                      ) : null}
                       <span className="rounded bg-bg px-1.5 py-0.5">
-                        {t.articleCount} articles
+                        {t.articleCount} {lang === "zh" ? "篇" : "articles"}
                       </span>
                       {primary?.eventType && (
                         <span className="rounded border border-border px-1.5 py-0.5 uppercase tracking-wide">

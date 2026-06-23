@@ -145,7 +145,7 @@ export const topics = pgTable(
     slug: text("slug").unique(),
     summaryEn: text("summary_en"),
     summaryZh: text("summary_zh"),
-    status: text("status").notNull().default("open"), // open | selected | drafted | published | dismissed
+    status: text("status").notNull().default("open"), // open | selected | drafted | published | dismissed | archived | merged
     importanceScore: integer("importance_score"),
     noveltyScore: integer("novelty_score"),
     audienceFitScore: integer("audience_fit_score"),
@@ -154,12 +154,18 @@ export const topics = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     articleCount: integer("article_count").notNull().default(0),
     primaryArticleId: uuid("primary_article_id"),
+    // Day 9.5: merge/archive support. mergedIntoId points to the survivor of
+    // a merge; if set, this topic should be hidden from /topics. notes is a
+    // free-form scratchpad an operator can write on the detail page.
+    mergedIntoId: uuid("merged_into_id"),
+    notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     statusIdx: index("topics_status_idx").on(t.status),
     finalScoreIdx: index("topics_final_score_idx").on(t.finalScore),
+    mergedIntoIdx: index("topics_merged_into_idx").on(t.mergedIntoId),
   })
 );
 
