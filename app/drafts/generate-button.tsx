@@ -2,23 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { t, type Lang } from "@/lib/i18n";
 
 /**
  * Client-side button: POSTs to /api/drafts then either navigates to the new
  * draft's editor or surfaces the error. windowDays is editable via prompt()
  * so we don't need a whole modal for the MVP.
  */
-export function GenerateDraftButton() {
+export function GenerateDraftButton({ lang }: { lang: Lang }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
-    const days = window.prompt("Window (days):", "7");
+    const days = window.prompt(t("drafts.windowPrompt", lang), "7");
     if (days === null) return;
     const windowDays = Number.parseInt(days, 10);
     if (!Number.isFinite(windowDays) || windowDays <= 0) {
-      setError("Window must be a positive integer.");
+      setError(t("drafts.windowInvalid", lang));
       return;
     }
     setError(null);
@@ -54,7 +55,7 @@ export function GenerateDraftButton() {
         disabled={busy}
         className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
       >
-        {busy ? "Generating…" : "Generate draft"}
+        {busy ? t("drafts.generating", lang) : t("drafts.generate", lang)}
       </button>
       {error ? (
         <span className="max-w-xs text-right text-xs text-red-400">{error}</span>

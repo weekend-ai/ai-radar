@@ -10,10 +10,13 @@ import { newsletterIssues } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
 import Link from "next/link";
 import { GenerateDraftButton } from "./generate-button";
+import { t } from "@/lib/i18n";
+import { resolveLang } from "@/lib/i18n.server";
 
 export const dynamic = "force-dynamic";
 
 export default async function DraftsPage() {
+  const lang = await resolveLang();
   const rows = await db
     .select({
       id: newsletterIssues.id,
@@ -33,18 +36,15 @@ export default async function DraftsPage() {
     <div className="space-y-6">
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Newsletter Drafts</h1>
-          <p className="text-sm text-muted">
-            Bilingual weekly drafts generated from the top scored topics.
-          </p>
+          <h1 className="text-2xl font-semibold">{t("drafts.title", lang)}</h1>
+          <p className="text-sm text-muted">{t("drafts.subtitle", lang)}</p>
         </div>
-        <GenerateDraftButton />
+        <GenerateDraftButton lang={lang} />
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded border border-dashed border-border bg-surface px-4 py-8 text-sm text-muted">
-          No drafts yet. Click <em>Generate draft</em> to produce one from the
-          last 7 days of topics.
+          {t("drafts.empty", lang)}
         </div>
       ) : (
         <ul className="space-y-3">
@@ -52,6 +52,12 @@ export default async function DraftsPage() {
             const start = d.periodStart ? fmt(d.periodStart) : "—";
             const end = d.periodEnd ? fmt(d.periodEnd) : "—";
             const created = d.createdAt ? fmtDateTime(d.createdAt) : "—";
+            const title =
+              (lang === "zh" ? d.titleZh : d.titleEn) ??
+              d.titleEn ??
+              d.titleZh ??
+              t("common.untitled", lang);
+            const subtitle = lang === "zh" ? d.titleEn : d.titleZh;
             return (
               <li
                 key={d.id}
@@ -62,9 +68,7 @@ export default async function DraftsPage() {
                   className="block space-y-1"
                 >
                   <div className="flex items-baseline justify-between gap-4">
-                    <h2 className="text-base font-medium">
-                      {d.titleEn ?? "(untitled)"}
-                    </h2>
+                    <h2 className="text-base font-medium">{title}</h2>
                     <span
                       className={
                         d.status === "published"
@@ -75,11 +79,11 @@ export default async function DraftsPage() {
                       {d.status}
                     </span>
                   </div>
-                  {d.titleZh ? (
-                    <p className="text-sm text-muted">{d.titleZh}</p>
+                  {subtitle ? (
+                    <p className="text-sm text-muted">{subtitle}</p>
                   ) : null}
                   <p className="text-xs text-muted">
-                    {start} → {end} · created {created}
+                    {start} → {end} · {t("common.created", lang)} {created}
                   </p>
                 </Link>
               </li>

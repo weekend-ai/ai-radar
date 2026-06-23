@@ -7,12 +7,18 @@ export const dynamic = "force-dynamic";
 
 type Sort = "recent" | "score";
 
+import { t } from "@/lib/i18n";
+import { resolveLang } from "@/lib/i18n.server";
+
 export default async function InboxPage({
   searchParams,
 }: {
   searchParams: Promise<{ source?: string; sort?: Sort; lang?: "en" | "zh" }>;
 }) {
-  const { source, sort = "recent", lang = "en" } = await searchParams;
+  const params = await searchParams;
+  const source = params.source;
+  const sort: Sort = params.sort ?? "recent";
+  const lang = await resolveLang(params);
 
   const baseSelect = {
     id: articles.id,
@@ -63,13 +69,12 @@ export default async function InboxPage({
     .select({ count: sql<number>`count(*)::int` })
     .from(articleInsights);
 
-  function makeHref(overrides: Partial<{ sort: Sort; lang: "en" | "zh" }>): string {
+  function makeHref(overrides: Partial<{ sort: Sort }>): string {
     const params = new URLSearchParams();
     if (source) params.set("source", source);
     const nextSort = overrides.sort ?? sort;
-    const nextLang = overrides.lang ?? lang;
     if (nextSort !== "recent") params.set("sort", nextSort);
-    if (nextLang !== "en") params.set("lang", nextLang);
+    // lang is global (topbar) — not on per-page links.
     const qs = params.toString();
     return `/inbox${qs ? `?${qs}` : ""}`;
   }
@@ -78,26 +83,20 @@ export default async function InboxPage({
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Inbox</h1>
+          <h1 className="text-2xl font-semibold">{t("inbox.title", lang)}</h1>
           <p className="mt-1 text-sm text-muted">
-            Showing {rows.length} articles{source ? ` from ${source}` : ""}. {enrichedCount.count}{" "}
-            enriched in DB.
+            {lang === "zh"
+              ? `${rows.length} 篇文章${source ? `（源：${source}）` : ""} · 数据库中 ${enrichedCount.count} 篇已增强`
+              : `Showing ${rows.length} articles${source ? ` from ${source}` : ""}. ${enrichedCount.count} enriched in DB.`}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted">sort:</span>
+          <span className="text-muted">{t("common.sort", lang)}:</span>
           <TabLink href={makeHref({ sort: "recent" })} active={sort === "recent"}>
-            recent
+            {t("common.recent", lang)}
           </TabLink>
           <TabLink href={makeHref({ sort: "score" })} active={sort === "score"}>
-            importance
-          </TabLink>
-          <span className="ml-3 text-muted">lang:</span>
-          <TabLink href={makeHref({ lang: "en" })} active={lang === "en"}>
-            EN
-          </TabLink>
-          <TabLink href={makeHref({ lang: "zh" })} active={lang === "zh"}>
-            中文
+            {lang === "zh" ? "重要度" : "importance"}
           </TabLink>
         </div>
       </header>

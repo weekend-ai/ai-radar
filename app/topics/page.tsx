@@ -14,6 +14,8 @@ import { db } from "@/lib/db/client";
 import { topics, topicArticles, articles, articleInsights, sources } from "@/lib/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import Link from "next/link";
+import { t } from "@/lib/i18n";
+import { resolveLang } from "@/lib/i18n.server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,9 @@ export default async function TopicsPage({
 }: {
   searchParams: Promise<{ sort?: Sort; lang?: "en" | "zh" }>;
 }) {
-  const { sort = "score", lang = "en" } = await searchParams;
+  const params = await searchParams;
+  const sort: Sort = params.sort ?? "score";
+  const lang = await resolveLang(params);
 
   // Order topics
   const topicsOrderBy =
@@ -103,12 +107,12 @@ export default async function TopicsPage({
     .from(topics)
     .where(eq(topics.status, "open"));
 
-  function makeHref(overrides: Partial<{ sort: Sort; lang: "en" | "zh" }>): string {
+  function makeHref(overrides: Partial<{ sort: Sort }>): string {
     const params = new URLSearchParams();
     const nextSort = overrides.sort ?? sort;
-    const nextLang = overrides.lang ?? lang;
     if (nextSort !== "score") params.set("sort", nextSort);
-    if (nextLang !== "en") params.set("lang", nextLang);
+    // lang is handled globally by the topbar LangToggle (cookie + URL),
+    // so we don't carry it on per-page nav links.
     const qs = params.toString();
     return `/topics${qs ? `?${qs}` : ""}`;
   }
@@ -117,29 +121,23 @@ export default async function TopicsPage({
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Topic Radar</h1>
+          <h1 className="text-2xl font-semibold">{t("topics.title", lang)}</h1>
           <p className="mt-1 text-sm text-muted">
-            {stats.totalTopics} active topics · {stats.totalAssignments} article
-            assignments · largest cluster: {stats.maxSize} articles
+            {lang === "zh"
+              ? `${stats.totalTopics} 个活跃话题 · ${stats.totalAssignments} 篇文章 · 最大簇 ${stats.maxSize} 篇`
+              : `${stats.totalTopics} active topics · ${stats.totalAssignments} article assignments · largest cluster: ${stats.maxSize} articles`}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted">sort:</span>
+          <span className="text-muted">{t("common.sort", lang)}:</span>
           <TabLink href={makeHref({ sort: "score" })} active={sort === "score"}>
-            score
+            {t("common.score", lang)}
           </TabLink>
           <TabLink href={makeHref({ sort: "size" })} active={sort === "size"}>
-            size
+            {t("common.size", lang)}
           </TabLink>
           <TabLink href={makeHref({ sort: "recent" })} active={sort === "recent"}>
-            recent
-          </TabLink>
-          <span className="ml-3 text-muted">lang:</span>
-          <TabLink href={makeHref({ lang: "en" })} active={lang === "en"}>
-            EN
-          </TabLink>
-          <TabLink href={makeHref({ lang: "zh" })} active={lang === "zh"}>
-            中文
+            {t("common.recent", lang)}
           </TabLink>
         </div>
       </header>
