@@ -1,5 +1,12 @@
-allowBuilds:
-  esbuild: set this to true or false
-  msgpackr-extract: set this to true or false
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
+# pnpm 11+ reads workspace-level settings from this file.
+# Per the docs (https://pnpm.io/settings), `onlyBuiltDependencies`
+# allow-lists packages whose install scripts may run. Anything not
+# listed here silently has its build scripts skipped — and in CI under
+# `--frozen-lockfile` the install EXITS NON-ZERO with ERR_PNPM_IGNORED_BUILDS
+# if any package wanted to run a build script.
+
+onlyBuiltDependencies:
+  - esbuild
+  - msgpackr-extract
+  - sharp
+  - unrs-resolver
