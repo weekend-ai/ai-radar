@@ -1,0 +1,54 @@
+# Keep the build context small + deterministic
+
+# Build artifacts
+.next
+.turbo
+node_modules
+dist
+out
+.swc
+*.tsbuildinfo
+
+# Local dev
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+docker-compose.yml
+docker-compose.*.yml
+
+# VCS / IDE
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+*.swp
+.DS_Store
+
+# Test + coverage
+coverage
+.nyc_output
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Helm / k8s (not needed inside the image)
+deploy
+helm
+charts
+*.tgz
+
+# Docs / examples
+README.md
+docs
+.github
+
+# Misc tooling
+.eslintcache
+playwright-report
+test-results
