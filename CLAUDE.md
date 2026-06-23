@@ -197,8 +197,9 @@ ai-radar/
 - **Bitnami charts block non-Bitnami images by default.** Set `postgresql.global.security.allowInsecureImages: true` when using `pgvector/pgvector:pg16`.
 - **Bitnami HTTPS chart repo is deprecated.** Use `oci://registry-1.docker.io/bitnamicharts`. The legacy URL silently redirects but `Chart.lock` digests won't reconcile cleanly.
 
-### GitHub Actions
+### GitHub Actions / pnpm
 - **pnpm/action-setup@v4 + `version:` field + `packageManager` field in package.json = `ERR_PNPM_BAD_PM_VERSION`.** Drop the `version:` from the action; the action reads `packageManager` automatically. (Fixed in PR #7.)
+- **pnpm v11 renamed `onlyBuiltDependencies` → `allowBuilds`** in `pnpm-workspace.yaml`. The v10 key is silently ignored — `pnpm config get` still reads it (misleading), but install behavior doesn't apply it. New syntax is a map, not a list: `allowBuilds: { esbuild: true, sharp: true, ... }`. Without it, CI exits non-zero with `ERR_PNPM_IGNORED_BUILDS`. (Fixed in PR #7.)
 - **PR base branch deletion auto-closes the PR.** If you need to retarget, rebase onto the new base and open a fresh PR.
 
 ---
