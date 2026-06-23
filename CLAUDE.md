@@ -242,7 +242,7 @@ helm template test . --set secrets.openaiApiKey=sk-test > /tmp/render.yaml
 
 ## Next milestones (the "what's coming" so you don't break in-flight work)
 
-**Day 8 (done — PR #?)**: Newsletter draft generator at `/drafts`.
+**Day 8 (done — PR #8)**: Newsletter draft generator at `/drafts`.
 - Reads top N topics in window by `final_score`, buckets into 4 sections (top_stories / infra_watch / research / quick_hits).
 - LLM (gpt-4o-mini / gpt-5.4-mini via LiteLLM) writes section blurbs + title + subject in JSON-schema mode; markdown is assembled deterministically.
 - Persists to `newsletter_issues` (+ items per article) in a single transaction.
