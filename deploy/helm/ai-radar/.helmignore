@@ -1,0 +1,18 @@
+# Patterns to skip when packaging the chart (`helm package`).
+# DO NOT add `charts/` or `*.tgz` here — Helm uses .helmignore during chart
+# loading too, so excluding charts/ silently makes subchart dependencies
+# invisible and you'll get "missing in charts/ directory" errors from
+# `helm template` / `helm install` even when the files are right there.
+
+.git/
+.gitignore
+.DS_Store
+*.swp
+*.bak
+*.tmp
+*.orig
+*.pyc
+
+# Local notes
+NOTES.md
+README.dev.md

@@ -1,0 +1,248 @@
+# Default values for ai-radar.
+# Override in production with `--values prod.yaml` or `--set key=value`.
+
+# -----------------------------------------------------------------------------
+# Image — built from the repo root Dockerfile. Push to your registry then set
+# repository/tag. The same image runs web + scheduler + migrate roles.
+# -----------------------------------------------------------------------------
+image:
+  repository: ghcr.io/weekend-ai/ai-radar
+  tag: ""  # defaults to .Chart.AppVersion if empty
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+# - name: ghcr-pull-secret
+
+# Override the chart's release name (Helm uses .Release.Name by default).
+nameOverride: ""
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# Common pod settings
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  fsGroup: 1001
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  readOnlyRootFilesystem: false  # Next.js writes to .next/cache at runtime
+  runAsNonRoot: true
+  runAsUser: 1001
+
+# -----------------------------------------------------------------------------
+# Web (Next.js) deployment + service + HPA + ingress
+# -----------------------------------------------------------------------------
+web:
+  enabled: true
+  replicaCount: 2
+
+  command: ["node"]
+  args: ["server.js"]
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Scheduler — BullMQ worker pool. MUST stay at replicas=1 (repeat job
+# registration is global; multiple schedulers double-register cron jobs).
+# -----------------------------------------------------------------------------
+scheduler:
+  enabled: true
+  replicaCount: 1   # do NOT change
+
+  # tsx loader needed because workers/* is TypeScript at runtime
+  command: ["node"]
+  args: ["--import", "tsx/esm", "workers/scheduler.ts"]
+
+  # Override pipeline cadence here (defaults baked into lib/queue/scheduler.ts)
+  extraEnv: []
+  # - name: FETCH_INTERVAL_MS
+  #   value: "1800000"
+  # - name: ENRICH_INTERVAL_MS
+  #   value: "900000"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+  livenessProbe:
+    exec:
+      command: ["pgrep", "-f", "scheduler"]
+    initialDelaySeconds: 60
+    periodSeconds: 60
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Migration — drizzle-kit migrate, runs as Helm pre-install + pre-upgrade hook
+# -----------------------------------------------------------------------------
+migrate:
+  enabled: true
+  command: ["node"]
+  args: ["--import", "tsx/esm", "scripts/migrate.ts"]
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Hook deletion policy: keep failed jobs for debugging
+  helmHookDeletePolicy: "before-hook-creation,hook-succeeded"
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+
+# -----------------------------------------------------------------------------
+# Secrets — set these via --set or a values-prod.yaml encrypted with sops/age.
+# In production, prefer external-secrets or sealed-secrets operator.
+# -----------------------------------------------------------------------------
+secrets:
+  # If create=true, render a Secret from the values below. If false, expect a
+  # pre-existing Secret with the same name (see existingSecretName).
+  create: true
+  existingSecretName: ""
+
+  # Set these via --set secrets.openaiApiKey=sk-...
+  openaiApiKey: ""
+  openaiBaseUrl: "https://api.openai.com/v1"
+  openaiEnrichModel: "gpt-4o-mini"
+  openaiEmbedModel: "text-embedding-3-large"
+  openaiEmbedDimensions: "1536"
+
+  # DATABASE_URL + REDIS_URL — when the embedded postgresql/redis subcharts are
+  # enabled, the chart auto-wires these (see templates/secret.yaml). Override
+  # to point at a managed DB (Neon, RDS, etc).
+  databaseUrlOverride: ""
+  redisUrlOverride: ""
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/proxy-body-size: 8m
+  hosts:
+    - host: ai-radar.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: ai-radar-tls
+    #   hosts:
+    #     - ai-radar.example.com
+
+# -----------------------------------------------------------------------------
+# PostgreSQL (Bitnami subchart). Disable if using managed DB; then set
+# secrets.databaseUrlOverride and add a sidecar to install pgvector extension
+# on first connect (we do that in scripts/migrate.ts via CREATE EXTENSION).
+# -----------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  auth:
+    username: ai_radar
+    password: changeme-in-prod
+    database: ai_radar
+    # postgresPassword (superuser) — required because CREATE EXTENSION vector
+    # needs SUPERUSER on most distros. Override in prod.
+    postgresPassword: changeme-in-prod-superuser
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      # storageClass: gp3
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  # We need pgvector. Bitnami's postgresql image doesn't ship it by default —
+  # use the pgvector/pgvector drop-in image (PG16 + vector extension).
+  # NOTE: must live at top-level (not under .primary), per Bitnami chart schema.
+  image:
+    registry: docker.io
+    repository: pgvector/pgvector
+    tag: "pg16"
+  # Bitnami's chart blocks any image it doesn't recognize unless you opt in.
+  # We're knowingly running the upstream pgvector/pgvector image here.
+  # See: https://github.com/bitnami/charts/issues/30850
+  global:
+    security:
+      allowInsecureImages: true
+
+# -----------------------------------------------------------------------------
+# Redis (Bitnami subchart) — BullMQ backing store.
+# -----------------------------------------------------------------------------
+redis:
+  enabled: true
+  architecture: standalone   # single master; replication is overkill for queues
+  auth:
+    enabled: false           # internal cluster only; turn on + set password in prod
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi

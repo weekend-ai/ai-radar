@@ -1,0 +1,33 @@
+Thanks for installing {{ .Chart.Name }} {{ .Chart.Version }} (app {{ .Chart.AppVersion }}).
+
+── Status ──────────────────────────────────────────────
+Release:     {{ .Release.Name }}
+Namespace:   {{ .Release.Namespace }}
+Web pods:    {{ if .Values.web.enabled }}{{ .Values.web.replicaCount }} × {{ include "ai-radar.image" . }}{{ else }}disabled{{ end }}
+Scheduler:   {{ if .Values.scheduler.enabled }}1 × (singleton, do not scale){{ else }}disabled{{ end }}
+Postgres:    {{ if .Values.postgresql.enabled }}embedded ({{ .Release.Name }}-postgresql, pgvector/pgvector:pg16){{ else }}external{{ end }}
+Redis:       {{ if .Values.redis.enabled }}embedded ({{ .Release.Name }}-redis-master){{ else }}external{{ end }}
+
+── Next steps ──────────────────────────────────────────
+1. Check the migration job ran:
+   kubectl -n {{ .Release.Namespace }} get jobs -l app.kubernetes.io/component=migrate
+   kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/component=migrate --tail=200
+
+2. Watch the web pods come up:
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/component=web -w
+
+{{- if .Values.ingress.enabled }}
+
+3. Reach the UI:
+{{- range .Values.ingress.hosts }}
+   https://{{ .host }}
+{{- end }}
+{{- else }}
+
+3. Port-forward for local access (no ingress configured):
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ai-radar.fullname" . }}-web 8080:{{ .Values.web.service.port }}
+   open http://localhost:8080
+{{- end }}
+
+4. Tail the scheduler:
+   kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/component=scheduler -f

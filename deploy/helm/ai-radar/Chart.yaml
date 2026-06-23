@@ -1,0 +1,28 @@
+apiVersion: v2
+name: ai-radar
+description: AI Radar — AI intelligence radar & newsletter generator
+type: application
+# version = chart version (bumped on chart changes)
+# appVersion = app version (set this to the image tag at deploy time, or
+# override --set image.tag=… on the helm install/upgrade command)
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/weekend-ai/ai-radar
+sources:
+  - https://github.com/weekend-ai/ai-radar
+maintainers:
+  - name: weekend-ai
+
+dependencies:
+  # NOTE: Bitnami's HTTPS chart repo has been deprecated in favor of OCI.
+  # Always use the oci:// form; the legacy https://charts.bitnami.com URL
+  # silently redirects and helm 3.18+ won't match downloaded .tgz files back
+  # to Chart.lock entries that point at the old URL.
+  - name: postgresql
+    version: "16.7.27"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: postgresql.enabled
+  - name: redis
+    version: "20.13.4"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: redis.enabled
