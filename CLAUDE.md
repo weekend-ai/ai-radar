@@ -134,8 +134,10 @@ ai-radar/
 - **Sources**: 12 enabled (openai-blog 1010 articles, huggingface-blog 803, anthropic-news 50, arxiv-cs-ai 30, arxiv-cs-lg 30, reddit-claudecode 32, steve-yegge-blog 25, anthropic-engineering 25, techcrunch-ai 20, google-ai-blog 20, the-verge-ai 10, mit-tech-review-ai 10).
 - **Articles**: ~2,065 fetched; 100% enriched + embedded.
 - **Topics**: 10 open clusters at threshold 0.82 (largest: "Introducing Claude Opus 4.8", score 9).
+- **Newsletter drafts**: 0 persisted (Day 8 verified E2E then test draft deleted; loop is live).
 - **Scheduler defaults** (overridable via env): fetch 30min × per-source × 3 concurrency / enrich+embed 15min × 1 / cluster 60min × 1.
-- **Cost reference**: full enrichment run (2023 articles) ~$0.71 on gpt-4o-mini; full embedding run (2058 articles) ~$0.011 on text-embedding-3-large @ 1536d.
+- **Tests**: 50/50 passing (+14 new in `lib/newsletter/`).
+- **Cost reference**: full enrichment run (2023 articles) ~$0.71 on gpt-4o-mini; full embedding run (2058 articles) ~$0.011 on text-embedding-3-large @ 1536d; one newsletter draft ~$0.001 on gpt-5.4-mini (5s, ~9KB markdown).
 
 ---
 
@@ -240,14 +242,15 @@ helm template test . --set secrets.openaiApiKey=sk-test > /tmp/render.yaml
 
 ## Next milestones (the "what's coming" so you don't break in-flight work)
 
-**Day 8 (next)**: Newsletter draft generator at `/drafts`.
-- Read top N topics by `final_score` (or user-prompt-prioritized).
-- LLM prompt → 4-section bilingual markdown (top_stories / infra_watch / research / quick_hits).
-- Persist to `newsletter_issues` + `newsletter_issue_items` (schema already in place since Day 1).
-- Editor with markdown preview, export markdown, mailto handoff.
-- This closes the MVP loop (fetch → enrich → cluster → **write**).
+**Day 8 (done — PR #?)**: Newsletter draft generator at `/drafts`.
+- Reads top N topics in window by `final_score`, buckets into 4 sections (top_stories / infra_watch / research / quick_hits).
+- LLM (gpt-4o-mini / gpt-5.4-mini via LiteLLM) writes section blurbs + title + subject in JSON-schema mode; markdown is assembled deterministically.
+- Persists to `newsletter_issues` (+ items per article) in a single transaction.
+- Editor at `/drafts/[id]` with bilingual title/subject fields, markdown source + live preview, save, status toggle (draft/published), copy/download .md, mailto handoff, delete.
+- `POST /api/drafts` (generate), `GET /api/drafts` (list), `GET/PATCH/DELETE /api/drafts/[id]`.
+- E2E verified 2026-06-23: generated a bilingual draft from 7-day window, 9.9KB markdown, 5s latency on gpt-5.4-mini.
 
-**Day 9**: i18n / bilingual switch on `/topics` + `/drafts` (currently English-only).
+**Day 9 (next)**: i18n / bilingual switch on `/topics` + `/drafts` (currently English-only).
 
 **Day 10**: production deploy — push image to GHCR, helm install on cluster, point a domain.
 
