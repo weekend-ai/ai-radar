@@ -136,8 +136,9 @@ ai-radar/
 - **Topics**: 10 open clusters at threshold 0.82 (largest: "Introducing Claude Opus 4.8", score 9).
 - **Newsletter drafts**: 0 persisted (Day 8 verified E2E then test draft deleted; loop is live).
 - **Scheduler defaults** (overridable via env): fetch 30min × per-source × 3 concurrency / enrich+embed 15min × 1 / cluster 60min × 1.
-- **Tests**: 56/56 passing (+6 i18n in PR #9).
-- **i18n**: global EN/中文 toggle in topbar (cookie `ai-radar-lang` + `?lang=` URL); `/topics`, `/inbox`, `/drafts` all bilingual.
+- **Tests**: 69/69 passing (+13 topic actions in PR #10).
+- **i18n**: global EN/中文 toggle in topbar (cookie `ai-radar-lang` + `?lang=` URL); `/topics`, `/inbox`, `/drafts`, `/topics/[id]` all bilingual.
+- **Topic operations**: `/topics/[id]` detail page with archive (reversible), promote (open↔selected), merge (PK-dedup + recompute), split (refuses to empty source), notes scratchpad. New status vocab: `archived`, `merged`. Topic Radar list now shows `open + selected`, hides merged/archived.
 - **Cost reference**: full enrichment run (2023 articles) ~$0.71 on gpt-4o-mini; full embedding run (2058 articles) ~$0.011 on text-embedding-3-large @ 1536d; one newsletter draft ~$0.001 on gpt-5.4-mini (5s, ~9KB markdown).
 
 ---
@@ -206,8 +207,13 @@ ai-radar/
 - **PR base branch deletion auto-closes the PR.** If you need to retarget, rebase onto the new base and open a fresh PR.
 
 ### Next.js 15 — client/server module split
-- **A client component (`"use client"`) cannot transitively import `next/headers`.** If `lib/foo.ts` calls `cookies()` and `components/bar.tsx` is `"use client"` and imports anything from `lib/foo`, the whole page 500s with "You're importing a component that needs `next/headers`". Fix: split into `lib/foo.ts` (client-safe types/dicts/pure helpers) and `lib/foo.server.ts` (server-only `cookies()`/`headers()` callers). Server components import from `.server`; client components import only from the base file. (PR #9, i18n.)
-- **Dynamic `router.push(\`/x/${id}\`)` with typedRoutes** needs `as never` cast. (Captured PR #8, reaffirmed PR #9.)
+- **A client component (`"use client"`) cannot transitively import `next/headers`.** If `lib/foo.ts` calls `cookies()` and `components/bar.tsx` is `"use client"` and imports anything from `lib/foo`, the whole page 500s with "You're importing a component that needs `next/headers`". Fix: split into `lib/foo.ts` (client-safe types/dicts/pure helpers) and `lib/foo.server.ts` (server-only `cookies()`/`headers()` callers). Server components import from `.server`; client components import only from the
+- **Dynamic `router.push(\`/x/${id}\`)` with typedRoutes** needs `as never` cast. (Captured PR #8, reaffirmed PR #9, #10.)
+
+### Drizzle + postgres.js gotchas (PR #10)
+- **JS arrays in `sql\`...${ids}::uuid[]\`\` tagged templates become `record`, not `uuid[]`.** postgres.js serializes JS arrays as ROW(...), and PG can't cast a record to a typed array. Symptom: `PostgresError: cannot cast type record to uuid[]`. Fix: use Drizzle's `inArray(col, ids)` for WHERE clauses, or `sql.join(ids.map((id) => sql\`${id}::uuid\`), sql\`, \`)` to build a real IN list.
+- **`min()`/`max()` on a `timestamp with time zone` column** returns a value that Drizzle's `PgTimestamp.mapToDriverValue` later tries to encode by calling `.toISOString()`, which crashes with `value.toISOString is not a function`. Symptom: any UPDATE that writes the aggregate back into a timestamp column fails. Fix: cast in SQL — `sql<string | null>\`min(${col})::text\`` — then `new Date(str)` in JS before writing.
+- **Integration tests need `.env` loaded explicitly.** `vitest.config.ts` now `import { config } from "dotenv"` + `loadEnv()` so tests with live DB calls work via `pnpm test`. Tests gate on `process.env.DATABASE_URL` and skip cleanly on CI.
 
 ---
 
@@ -261,6 +267,19 @@ helm template test . --set secrets.openaiApiKey=sk-test > /tmp/render.yaml
 - All server pages call `resolveLang(searchParams)` — URL wins, cookie sticky, default EN.
 - Per-page lang TabLinks deleted from `/topics` and `/inbox` (global only now).
 - `<html lang>` switches to `zh-CN` / `en`.
+
+**Day 9.5 (PR #10) — Topic detail + operations**
+- `/topics/[id]`: server-rendered detail with members list, status pill, score badges, notes scratchpad.
+- Four mutation actions wired to dedicated API routes:
+  - `POST /api/topics/[id]/archive` + `DELETE` for unarchive — reversible.
+  - `POST /api/topics/[id]/promote` — toggles `open ↔ selected`.
+  - `POST /api/topics/merge` `{survivorId, mergedIds[]}` — PK-dedup memberships, marks losers `status=merged + merged_into_id`, recomputes survivor aggregates.
+  - `POST /api/topics/[id]/split` `{articleIds[], newTitleEn?}` — spins subset into new `open` topic; refuses `WOULD_EMPTY_TOPIC`.
+  - `POST /api/topics/[id]/notes` — free-form text, trims to NULL on blank.
+- Schema migration 0002: `topics.merged_into_id` (uuid, indexed) + `topics.notes` (text). Status vocab extended with `archived` and `merged`.
+- `/topics` list now filters to `open + selected` (hides merged/archived); shows blue "selected" pill + per-row "detail →" link.
+- Pure logic in `lib/topics/actions.ts` with `TopicActionError(code, message)` for stable 4xx mapping in routes.
+- 13 integration tests against live local Postgres (skip gracefully when `DATABASE_URL` absent).
 
 **Day 10 (next)**: production deploy — push image to GHCR, helm install on cluster, point a domain.
 
