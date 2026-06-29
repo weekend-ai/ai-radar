@@ -14,11 +14,12 @@
 # Image — pinned to the freshly built+pushed image
 # -----------------------------------------------------------------------------
 image:
-  repository: ghcr.io/weekend-ai/ai-radar
+  repository: vropco.azurecr.io/weekend-ai/ai-radar
   tag: "v0.1.0"          # bump after each docker push
   pullPolicy: IfNotPresent
 
-# Package is public on GHCR, so no imagePullSecrets needed.
+# Package is public on GHCR, but our cluster cannot reach Docker Hub /
+# ghcr.io directly — all images are mirrored to vropco.azurecr.io via crane.
 imagePullSecrets: []
 
 # -----------------------------------------------------------------------------
@@ -84,14 +85,22 @@ postgresql:
       limits:
         cpu: "1"
         memory: 1Gi
-  # pgvector image (Bitnami chart needs allowInsecureImages flag for non-Bitnami images)
+  # pgvector image — mirrored to internal ACR (cluster can't reach Docker Hub)
   image:
-    registry: docker.io
+    registry: vropco.azurecr.io
     repository: pgvector/pgvector
     tag: "pg16"
-  global:
-    security:
-      allowInsecureImages: true
+
+# -----------------------------------------------------------------------------
+# Global Bitnami subchart overrides (MUST be at top level, not under postgresql)
+# -----------------------------------------------------------------------------
+global:
+  security:
+    # Allow non-Bitnami images (pgvector/pgvector + our ACR mirror of bitnami/redis)
+    allowInsecureImages: true
+  # Default registry for all Bitnami subchart images. Per-chart image.registry
+  # overrides this (we set it explicitly for postgres + redis above/below).
+  imageRegistry: vropco.azurecr.io
 
 # -----------------------------------------------------------------------------
 # Redis — BullMQ queue backing store
@@ -99,6 +108,11 @@ postgresql:
 redis:
   enabled: true
   architecture: standalone
+  # Mirrored to internal ACR (same reason as postgres)
+  image:
+    registry: vropco.azurecr.io
+    repository: bitnami/redis
+    tag: 7.4.3-debian-12-r0
   auth:
     enabled: false    # cluster-internal only; turn on if cluster shared with others
   master:

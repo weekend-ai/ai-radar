@@ -34,7 +34,7 @@ spec:
       # a TCP poll with nc. 60s ceiling — pg is usually ready in <10s.
       initContainers:
         - name: wait-for-postgres
-          image: busybox:1.37
+          image: {{ .Values.migrate.waitImage | default "busybox:1.37" }}
           command:
             - sh
             - -c
