@@ -4,38 +4,65 @@
 #   helm install ai-radar deploy/helm/ai-radar \
 #     -f values-prod.yaml \
 #     --set secrets.openaiApiKey=<LiteLLM-key> \
+#     --set postgresql.auth.password=<pwd> \
+#     --set postgresql.auth.postgresPassword=<pwd> \
 #     --namespace ai-radar --create-namespace \
 #     --wait --timeout 10m
 #
 # (openaiApiKey is intentionally NOT in this file — pass via --set so the
 #  key never lands in git or shell history beyond the single command.)
+#
+# -----------------------------------------------------------------------------
+# Two image sources:
+#
+#   1. App image (ai-radar):   ALWAYS pulled from ghcr.io (public, our own).
+#      → no mirroring needed; cluster must be able to reach ghcr.io.
+#
+#   2. Dependency images (postgres, redis, busybox):  pulled from a private
+#      registry because Docker Hub is unreachable from this cluster.
+#      → change `_depRegistry` below to repoint all three at a different
+#        registry; mirror commands are documented inline.
+# -----------------------------------------------------------------------------
+
+# Anchor — change THIS LINE to repoint all dependency images at a different
+# registry. The app image (ghcr.io/weekend-ai/ai-radar) is unaffected.
+_depRegistry: &depRegistry vropco.azurecr.io
+
+# Mirror commands (run from a host with both Docker Hub + your registry reach):
+#
+#   REG=vropco.azurecr.io
+#   az acr login --name vropco
+#   crane copy docker.io/pgvector/pgvector:pg16          $REG/pgvector/pgvector:pg16
+#   crane copy docker.io/bitnami/redis:latest            $REG/bitnami/redis:8.0-latest-snapshot
+#   crane copy docker.io/library/busybox:1.37            $REG/library/busybox:1.37
 
 # -----------------------------------------------------------------------------
-# Image — pinned to the freshly built+pushed image
+# App image — pulled from GHCR (public)
 # -----------------------------------------------------------------------------
 image:
-  repository: vropco.azurecr.io/weekend-ai/ai-radar
-  tag: "v0.1.0"          # bump after each docker push
+  repository: ghcr.io/weekend-ai/ai-radar
+  tag: "v0.1.0"
   pullPolicy: IfNotPresent
 
-# Package is public on GHCR, but our cluster cannot reach Docker Hub /
-# ghcr.io directly — all images are mirrored to vropco.azurecr.io via crane.
 imagePullSecrets: []
 
+# busybox init container (wait-for-postgres in migrate hook). Mirrored.
+migrate:
+  waitImage: vropco.azurecr.io/library/busybox:1.37
+
 # -----------------------------------------------------------------------------
-# LLM gateway — route through your private LiteLLM instance instead of
-# api.openai.com. The OpenAI SDK speaks the same protocol so this just works.
+# LLM gateway — route through private LiteLLM instead of api.openai.com
 # -----------------------------------------------------------------------------
 secrets:
   create: true
-  # openaiApiKey: ""  ← pass via --set on install command, not in the file
+  # openaiApiKey: ""  ← pass via --set on install
   openaiBaseUrl: "https://litellm.revitalise.cc"
-  openaiEnrichModel: "gpt-4o-mini"          # adjust if LiteLLM exposes different names
+  openaiEnrichModel: "gpt-4o-mini"
   openaiEmbedModel: "text-embedding-3-large"
   openaiEmbedDimensions: "1536"
 
 # -----------------------------------------------------------------------------
-# Web — bump to production-ish defaults
+# Web — production-ish defaults
 # -----------------------------------------------------------------------------
 web:
   replicaCount: 2
@@ -47,7 +74,7 @@ web:
       cpu: 500m
       memory: 512Mi
   autoscaling:
-    enabled: false   # turn on after stable
+    enabled: false
 
 # Scheduler MUST stay at 1 (repeatable-job registration is global)
 scheduler:
@@ -55,29 +82,27 @@ scheduler:
   replicaCount: 1
 
 # -----------------------------------------------------------------------------
-# Ingress — disabled for first install. Enable when we add Cloudflare Tunnel
-# or proper ingress controller.
+# Ingress — disabled until Cloudflare Tunnel lands
 # -----------------------------------------------------------------------------
 ingress:
   enabled: false
 
 # -----------------------------------------------------------------------------
-# Postgres (pgvector) — the actual DB backing the pipeline
-# CHANGE THESE PASSWORDS before installing in any environment you care about.
+# Postgres (pgvector) — image mirrored to _depRegistry
+# CHANGE PASSWORDS via --set on install
 # -----------------------------------------------------------------------------
 postgresql:
   enabled: true
   auth:
     username: ai_radar
     database: ai_radar
-    # ⚠️ override these via --set on install, or rotate after first install
     password: "CHANGE-ME-app-user-pwd"
     postgresPassword: "CHANGE-ME-superuser-pwd"
   primary:
     persistence:
       enabled: true
       size: 20Gi
-      storageClass: "default"   # Azure disk.csi.azure.com (WaitForFirstConsumer)
+      storageClass: "default"
     resources:
       requests:
         cpu: 200m
@@ -85,42 +110,37 @@ postgresql:
       limits:
         cpu: "1"
         memory: 1Gi
-  # pgvector image — mirrored to internal ACR (cluster can't reach Docker Hub)
   image:
-    registry: vropco.azurecr.io
+    registry: *depRegistry
     repository: pgvector/pgvector
     tag: "pg16"
 
 # -----------------------------------------------------------------------------
-# Global Bitnami subchart overrides (MUST be at top level, not under postgresql)
+# Global Bitnami subchart overrides (MUST be top-level)
 # -----------------------------------------------------------------------------
 global:
   security:
-    # Allow non-Bitnami images (pgvector/pgvector + our ACR mirror of bitnami/redis)
+    # Allow non-Bitnami images (pgvector/pgvector + our snapshot of bitnami/redis)
     allowInsecureImages: true
-  # Default registry for all Bitnami subchart images. Per-chart image.registry
-  # overrides this (we set it explicitly for postgres + redis above/below).
-  imageRegistry: vropco.azurecr.io
+  # Default registry for Bitnami subchart images
+  imageRegistry: *depRegistry
 
 # -----------------------------------------------------------------------------
-# Redis — BullMQ queue backing store
+# Redis — image mirrored to _depRegistry
+#
+# Bitnami removed all named tags from Docker Hub free tier in 2025 (Broadcom
+# policy); only `latest` and sha256 digests remain. We mirror `latest` →
+# private registry under a date-or-version-pinned tag.
 # -----------------------------------------------------------------------------
 redis:
   enabled: true
   architecture: standalone
-  # Mirrored to internal ACR (same reason as postgres).
-  # Bitnami removed all named tags in 2025 (Broadcom policy); only `latest`
-  # remains on Docker Hub free tier. We mirror `latest` → ACR under a
-  # date-pinned tag so the ACR side never drifts mid-deploy.
-  #
-  # When refreshing: `crane copy docker.io/bitnami/redis:latest
-  #   vropco.azurecr.io/bitnami/redis:YYYY-MM-DD` and bump the tag below.
   image:
-    registry: vropco.azurecr.io
+    registry: *depRegistry
     repository: bitnami/redis
     tag: "8.0-latest-snapshot"
   auth:
-    enabled: false    # cluster-internal only; turn on if cluster shared with others
+    enabled: false
   master:
     persistence:
       enabled: true

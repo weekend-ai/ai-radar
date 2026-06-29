@@ -133,8 +133,9 @@ migrate:
   enabled: true
   command: ["node"]
   args: ["--import", "tsx/esm", "scripts/migrate.ts"]
-  # init container image for wait-for-postgres (mirrored to internal ACR)
-  waitImage: "vropco.azurecr.io/library/busybox:1.37"
+  # init container image for wait-for-postgres. Default is the upstream
+  # busybox; override in values-prod.yaml if your cluster mirrors images.
+  waitImage: "busybox:1.37"
   resources:
     requests:
       cpu: 50m
