@@ -118,6 +118,19 @@ postgresql:
     registry: *depRegistry
     repository: pgvector/pgvector
     tag: "pg16"
+  # pgvector/pgvector image is NOT the Bitnami PG image — it's the upstream
+  # community pgvector image which doesn't mount /var/run/postgresql as
+  # emptyDir. Bitnami chart defaults containerSecurityContext.readOnlyRootFs=true
+  # which makes the upstream image crash with:
+  #   FATAL: could not create lock file "/var/run/postgresql/.s.PGSQL.5432.lock":
+  #     Read-only file system
+  # Disable the readOnly root for both primary + read replicas.
+  primary:
+    containerSecurityContext:
+      readOnlyRootFilesystem: false
+  readReplicas:
+    containerSecurityContext:
+      readOnlyRootFilesystem: false
 
 # -----------------------------------------------------------------------------
 # Global Bitnami subchart overrides (MUST be top-level)
