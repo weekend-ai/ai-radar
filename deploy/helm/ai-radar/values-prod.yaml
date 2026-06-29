@@ -108,11 +108,17 @@ global:
 redis:
   enabled: true
   architecture: standalone
-  # Mirrored to internal ACR (same reason as postgres)
+  # Mirrored to internal ACR (same reason as postgres).
+  # Bitnami removed all named tags in 2025 (Broadcom policy); only `latest`
+  # remains on Docker Hub free tier. We mirror `latest` → ACR under a
+  # date-pinned tag so the ACR side never drifts mid-deploy.
+  #
+  # When refreshing: `crane copy docker.io/bitnami/redis:latest
+  #   vropco.azurecr.io/bitnami/redis:YYYY-MM-DD` and bump the tag below.
   image:
     registry: vropco.azurecr.io
     repository: bitnami/redis
-    tag: 7.4.3-debian-12-r0
+    tag: "2026-06-29"
   auth:
     enabled: false    # cluster-internal only; turn on if cluster shared with others
   master:
