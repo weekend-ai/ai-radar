@@ -17,6 +17,7 @@ out
 .env.test
 docker-compose.yml
 docker-compose.*.yml
+.docker-data
 
 # VCS / IDE
 .git
