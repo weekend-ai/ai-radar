@@ -1,13 +1,17 @@
 # values-prod.yaml — AI Radar production overrides
 #
 # Deploy with:
-#   helm install ai-radar deploy/helm/ai-radar \
+#   helm install kradar deploy/helm/ai-radar \
 #     -f values-prod.yaml \
 #     --set secrets.openaiApiKey=<LiteLLM-key> \
 #     --set postgresql.auth.password=<pwd> \
 #     --set postgresql.auth.postgresPassword=<pwd> \
-#     --namespace litellm --create-namespace \
+#     --namespace kradar --create-namespace \
 #     --wait --timeout 10m
+#
+# Resource naming: release name is "kradar", so resources become
+#   kradar-web, kradar-scheduler, kradar-postgresql, kradar-redis-master, ...
+# Chart itself stays named "ai-radar" (matches GitHub repo).
 #
 # (openaiApiKey is intentionally NOT in this file — pass via --set so the
 #  key never lands in git or shell history beyond the single command.)
