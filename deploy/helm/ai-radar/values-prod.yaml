@@ -118,7 +118,7 @@ redis:
   image:
     registry: vropco.azurecr.io
     repository: bitnami/redis
-    tag: "2026-06-29"
+    tag: "8.0-latest-snapshot"
   auth:
     enabled: false    # cluster-internal only; turn on if cluster shared with others
   master:
