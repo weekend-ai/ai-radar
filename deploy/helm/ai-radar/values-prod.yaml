@@ -6,7 +6,7 @@
 #     --set secrets.openaiApiKey=<LiteLLM-key> \
 #     --set postgresql.auth.password=<pwd> \
 #     --set postgresql.auth.postgresPassword=<pwd> \
-#     --namespace ai-radar --create-namespace \
+#     --namespace litellm --create-namespace \
 #     --wait --timeout 10m
 #
 # (openaiApiKey is intentionally NOT in this file — pass via --set so the
