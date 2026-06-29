@@ -1,0 +1,115 @@
+# values-prod.yaml — AI Radar production overrides
+#
+# Deploy with:
+#   helm install ai-radar deploy/helm/ai-radar \
+#     -f values-prod.yaml \
+#     --set secrets.openaiApiKey=<LiteLLM-key> \
+#     --namespace ai-radar --create-namespace \
+#     --wait --timeout 10m
+#
+# (openaiApiKey is intentionally NOT in this file — pass via --set so the
+#  key never lands in git or shell history beyond the single command.)
+
+# -----------------------------------------------------------------------------
+# Image — pinned to the freshly built+pushed image
+# -----------------------------------------------------------------------------
+image:
+  repository: ghcr.io/weekend-ai/ai-radar
+  tag: "v0.1.0"          # bump after each docker push
+  pullPolicy: IfNotPresent
+
+# Package is public on GHCR, so no imagePullSecrets needed.
+imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# LLM gateway — route through your private LiteLLM instance instead of
+# api.openai.com. The OpenAI SDK speaks the same protocol so this just works.
+# -----------------------------------------------------------------------------
+secrets:
+  create: true
+  # openaiApiKey: ""  ← pass via --set on install command, not in the file
+  openaiBaseUrl: "https://litellm.revitalise.cc"
+  openaiEnrichModel: "gpt-4o-mini"          # adjust if LiteLLM exposes different names
+  openaiEmbedModel: "text-embedding-3-large"
+  openaiEmbedDimensions: "1536"
+
+# -----------------------------------------------------------------------------
+# Web — bump to production-ish defaults
+# -----------------------------------------------------------------------------
+web:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false   # turn on after stable
+
+# Scheduler MUST stay at 1 (repeatable-job registration is global)
+scheduler:
+  enabled: true
+  replicaCount: 1
+
+# -----------------------------------------------------------------------------
+# Ingress — disabled for first install. Enable when we add Cloudflare Tunnel
+# or proper ingress controller.
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+
+# -----------------------------------------------------------------------------
+# Postgres (pgvector) — the actual DB backing the pipeline
+# CHANGE THESE PASSWORDS before installing in any environment you care about.
+# -----------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  auth:
+    username: ai_radar
+    database: ai_radar
+    # ⚠️ override these via --set on install, or rotate after first install
+    password: "CHANGE-ME-app-user-pwd"
+    postgresPassword: "CHANGE-ME-superuser-pwd"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "default"   # Azure disk.csi.azure.com (WaitForFirstConsumer)
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  # pgvector image (Bitnami chart needs allowInsecureImages flag for non-Bitnami images)
+  image:
+    registry: docker.io
+    repository: pgvector/pgvector
+    tag: "pg16"
+  global:
+    security:
+      allowInsecureImages: true
+
+# -----------------------------------------------------------------------------
+# Redis — BullMQ queue backing store
+# -----------------------------------------------------------------------------
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false    # cluster-internal only; turn on if cluster shared with others
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClass: "default"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
